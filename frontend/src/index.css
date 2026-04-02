@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=BBH+Bartle&family=Caveat:wght@400..700&family=Outfit:wght@100..900&display=swap');
+
+@import "tailwindcss";
+@tailwind utilities;
+
+*{
+    font-family: "Outfit", sans-serif;
+}
+
+@theme{
+    --color-primary: #2563Eb;
+    --color-primary-dull: #1F58D8;
+    --color-light: #F1F5F9;
+    --color-borderColor: #c4c7d2;   
+     --color-secondary: #F87171; /* red */
+     --color-accent: #34D399; /* green */
+     --color-bg: #F3F4F6; /* light gray background */
+    --color-text: #374151;/* dark gray text */
+     
+}
