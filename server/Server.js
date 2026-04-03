@@ -54,7 +54,7 @@ app.use("/api/owner", ownerRoutes);
 app.use("/api", productRoutes);
 
 // ✅ Catch-all: serve React app for any non-API route
-app.get("*", (req, res) => {
+app.get("/{*path}", (req, res) => {
   const indexPath = path.join(distPath, "index.html");
 
   if (!fs.existsSync(indexPath)) {
