@@ -2,7 +2,7 @@ import Product from "../models/Product.js";
 import Cart from "../models/cart.js";
 import User from "../models/User.js";
 import Maintenance from "../models/Maintenance.js";
-import imagekit from "../configs/imagekit.js";
+import imagekit from "../configs/imageKit.js";
 
 // ✅ Helper to upload to ImageKit
 const uploadToImageKit = async (file) => {
