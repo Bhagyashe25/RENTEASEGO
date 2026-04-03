@@ -2,24 +2,24 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-// Make sure the uploads folder exists
-const uploadFolder = "uploads/";
-if (!fs.existsSync(uploadFolder)) {
+// ✅ Use /tmp on Vercel, local uploads/ folder otherwise
+const uploadFolder = process.env.VERCEL ? "/tmp" : "uploads/";
+
+// ✅ Only create folder locally (Vercel /tmp already exists)
+if (!process.env.VERCEL && !fs.existsSync(uploadFolder)) {
   fs.mkdirSync(uploadFolder, { recursive: true });
 }
 
-// Configure storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadFolder); // save files in "uploads/"
+    cb(null, uploadFolder);
   },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname); // keep file extension
+    const ext = path.extname(file.originalname);
     const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1e9) + ext;
     cb(null, uniqueName);
   },
 });
 
-// Export multer instance
 const upload = multer({ storage });
 export default upload;
