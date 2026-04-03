@@ -1,8 +1,18 @@
-// controllers/vendorController.js
 import Product from "../models/Product.js";
 import Cart from "../models/cart.js";
-import User from "../models/User.js"; // make sure path is correct
+import User from "../models/User.js";
 import Maintenance from "../models/Maintenance.js";
+import imagekit from "../configs/imagekit.js";
+
+// ✅ Helper to upload to ImageKit
+const uploadToImageKit = async (file) => {
+  const response = await imagekit.upload({
+    file: file.buffer,
+    fileName: Date.now() + "-" + file.originalname,
+    folder: "/renteasego",
+  });
+  return response.url;
+};
 
 export const updateVendorImage = async (req, res) => {
   try {
@@ -14,60 +24,49 @@ export const updateVendorImage = async (req, res) => {
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    // Build full URL for frontend
-    const fullUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-    user.image = fullUrl;
+    // ✅ Upload to ImageKit
+    const imageUrl = await uploadToImageKit(req.file);
+    user.image = imageUrl;
     await user.save();
 
-    res.json({ success: true, message: "Profile image updated", newImageUrl: fullUrl });
+    res.json({ success: true, message: "Profile image updated", newImageUrl: imageUrl });
   } catch (err) {
     console.error("Update Image Error:", err);
     res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
 
-// ----------------- Product Management -----------------
-// controllers/vendorController.js
 export const addProduct = async (req, res) => {
   try {
-    console.log("=== Add Product Request ===");
-    console.log("req.body:", req.body);
-    console.log("req.file:", req.file);
-    console.log("req.user:", req.user);
-
-    // ✅ Parse JSON arrays FIRST
     let locations = [];
     let tenureOptions = [];
-    
+
     try {
-      locations = JSON.parse(req.body.locations || '[]');
-      tenureOptions = JSON.parse(req.body.tenureOptions || '[]');
+      locations = JSON.parse(req.body.locations || "[]");
+      tenureOptions = JSON.parse(req.body.tenureOptions || "[]");
     } catch (e) {
       console.log("JSON Parse Error:", e.message);
     }
 
-    const { 
-      name, 
-      description, 
-      category, 
-      pricePerDay, 
-      pricePerWeek, 
-      pricePerMonth, 
-      securityDeposit, 
-      orderType 
+    const {
+      name,
+      description,
+      category,
+      pricePerDay,
+      pricePerWeek,
+      pricePerMonth,
+      securityDeposit,
+      orderType,
     } = req.body;
 
-    // ✅ Frontend sends 'locations' array, backend expects 'location' string
-    const location = Array.isArray(locations) && locations.length > 0 
-      ? locations.join(', ')  // Convert array to comma-separated string
-      : req.body.location || '';
+    const location =
+      Array.isArray(locations) && locations.length > 0
+        ? locations.join(", ")
+        : req.body.location || "";
 
-    console.log("Parsed values:", { name, category, location, orderType, locationsArray: locations  });
-
-    // ✅ Updated validation - check parsed values
     if (!name || !description || !category || !pricePerMonth || !req.file || !location || !orderType) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         message: "All required fields and image are mandatory",
         missing: {
           name: !name,
@@ -77,12 +76,13 @@ export const addProduct = async (req, res) => {
           location: !location,
           orderType: !orderType,
           image: !req.file,
-          locationsArray: locations.length === 0
-        }
+          locationsArray: locations.length === 0,
+        },
       });
     }
 
-    const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    // ✅ Upload to ImageKit
+    const imageUrl = await uploadToImageKit(req.file);
 
     const product = new Product({
       name,
@@ -92,27 +92,24 @@ export const addProduct = async (req, res) => {
       pricePerWeek: Number(pricePerWeek || 0),
       pricePerMonth: Number(pricePerMonth),
       securityDeposit: Number(securityDeposit || 0),
-      tenureOptions, // ✅ Already parsed array
-      location: locations,    // ✅ String for schema
+      tenureOptions,
+      location: locations,
       orderType,
-      image: imageUrl,
-      admin: req.user._id,  // ✅ Keep as admin for backward compatibility
-      vendor: req.user._id  // ✅ Add vendor field too
+      image: imageUrl, // ✅ ImageKit URL
+      admin: req.user._id,
+      vendor: req.user._id,
     });
 
     await product.save();
-    console.log("✅ Product saved successfully:", product._id);
-    
-    res.json({ 
-      success: true, 
-      message: "Product added successfully", 
-      product 
-    });
+    console.log("✅ Product saved:", product._id);
+
+    res.json({ success: true, message: "Product added successfully", product });
   } catch (error) {
     console.error("Add Product Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const getProducts = async (req, res) => {
   try {
     const products = await Product.find({ admin: req.user._id });
@@ -150,7 +147,8 @@ export const toggleProductAvailability = async (req, res) => {
   try {
     const { productId } = req.body;
     const product = await Product.findById(productId);
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    if (!product)
+      return res.status(404).json({ success: false, message: "Product not found" });
 
     product.available = !product.available;
     await product.save();
@@ -160,8 +158,6 @@ export const toggleProductAvailability = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// ----------------- Vendor Orders -----------------
 
 export const updateBookingStatus = async (req, res) => {
   try {
@@ -173,108 +169,78 @@ export const updateBookingStatus = async (req, res) => {
   }
 };
 
-
-// ✅ Get Vendor's Maintenance Requests
 export const getVendorMaintenance = async (req, res) => {
   try {
-    
     if (req.user.role !== "vendor") {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
-    // 1. Get vendor's products ONLY
     const vendorProducts = await Product.find({ admin: req.user._id });
-    console.log("🔍 Vendor products found:", vendorProducts.length);
-    
     if (vendorProducts.length === 0) {
-      return res.json({ 
-        success: true, 
-        maintenance: [], 
-        returns: [],
-        debug: { message: "No products found for this vendor" }
-      });
+      return res.json({ success: true, maintenance: [], returns: [] });
     }
 
-    const productIds = vendorProducts.map(p => p._id);
+    const productIds = vendorProducts.map((p) => p._id);
+    const vendorCarts = await Cart.find({ product: { $in: productIds } }).populate("product", "name");
+    const cartIds = vendorCarts.map((c) => c._id);
 
-    // 2. Get carts for THESE products
-    const vendorCarts = await Cart.find({ 
-      product: { $in: productIds } 
-    }).populate('product', 'name');
-    
+    const maintenanceRequests = await Maintenance.find({
+      productId: { $in: cartIds },
+    }).populate("userId", "name email");
 
-
-    const cartIds = vendorCarts.map(c => c._id);
-
-    // 3. Get maintenance for THESE carts
-    const maintenanceRequests = await Maintenance.find({ 
-      productId: { $in: cartIds } 
-    }).populate('userId', 'name email');
-
-    // 4. Map with CORRECT product names
-    const maintenanceList = maintenanceRequests.map(m => {
-      const cart = vendorCarts.find(c => c._id.toString() === m.productId.toString());
+    const maintenanceList = maintenanceRequests.map((m) => {
+      const cart = vendorCarts.find((c) => c._id.toString() === m.productId.toString());
       const productName = cart?.product?.name || `Cart ${m.productId?.slice(-4)}`;
-      
       return {
         _id: m._id,
         productName,
-        status: m.status || 'pending',
+        status: m.status || "pending",
         issue: m.issue,
         description: m.description,
-        userName: m.userId?.name || 'Unknown',
-        createdAt: m.createdAt
+        userName: m.userId?.name || "Unknown",
+        createdAt: m.createdAt,
       };
     });
 
-    // 5. Returns
     const returnsList = await Cart.find({
       product: { $in: productIds },
-      status: { $in: ["returned", "pending return"] }
-    }).populate('product', 'name').populate('user', 'name');
+      status: { $in: ["returned", "pending return"] },
+    }).populate("product", "name").populate("user", "name");
 
-    res.json({ 
-      success: true, 
-      maintenance: maintenanceList, 
-      returns: returnsList.map(r => ({
+    res.json({
+      success: true,
+      maintenance: maintenanceList,
+      returns: returnsList.map((r) => ({
         _id: r._id,
-        productName: r.product?.name || 'Unknown',
+        productName: r.product?.name || "Unknown",
         status: r.status,
-        userName: r.user?.name || 'Unknown',
-        createdAt: r.createdAt
+        userName: r.user?.name || "Unknown",
+        createdAt: r.createdAt,
       })),
-     
     });
-
   } catch (error) {
-    
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Logistics route
-
-
 
 export const getVendorLogistics = async (req, res) => {
   try {
-    // Find carts belonging to this vendor (admin field)
     const schedules = await Cart.find({
       admin: req.user._id,
-      status: { $in: ["confirmed", "pending"] }
+      status: { $in: ["confirmed", "pending"] },
     })
       .populate("product", "name image")
       .populate("user", "name email")
       .sort({ deliveryDate: 1 });
 
-   const formattedSchedules = schedules.map(item => ({
-  _id: item._id,
-  type: item.orderType, // ✅ clean distinction
-  item: item.product?.name || "Unknown Item",
-  address: item.location || "No Address",
-  date: item.deliveryDate ? item.deliveryDate.toISOString().split("T")[0] : "N/A",
-  slot: item.pickupDate ? item.pickupDate.toISOString().split("T")[0] : "N/A"
-}));
-
+    const formattedSchedules = schedules.map((item) => ({
+      _id: item._id,
+      type: item.orderType,
+      item: item.product?.name || "Unknown Item",
+      address: item.location || "No Address",
+      date: item.deliveryDate ? item.deliveryDate.toISOString().split("T")[0] : "N/A",
+      slot: item.pickupDate ? item.pickupDate.toISOString().split("T")[0] : "N/A",
+    }));
 
     res.json({ success: true, schedules: formattedSchedules });
   } catch (error) {
@@ -282,6 +248,7 @@ export const getVendorLogistics = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const getVendorOrders = async (req, res) => {
   try {
     const orders = await Cart.find({ admin: req.user._id })
@@ -289,19 +256,12 @@ export const getVendorOrders = async (req, res) => {
       .populate("user", "name email")
       .sort({ createdAt: -1 });
 
-    res.json({
-      success: true,
-      orders
-    });
+    res.json({ success: true, orders });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ✅ Update Maintenance Request Status
 export const updateMaintenanceStatus = async (req, res) => {
   try {
     const { maintenanceId, status } = req.body;
@@ -326,43 +286,28 @@ export const updateMaintenanceStatus = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
 export const updateOrderStatus = async (req, res) => {
   try {
     const { bookingId, status } = req.body;
     const vendorId = req.user._id;
 
-    // ✅ Find the order
     const order = await Cart.findOne({ _id: bookingId, vendor: vendorId });
-
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found or unauthorized",
-      });
-    }
-    // ✅ Allow all status transitions
-    const validStatuses = ['pending', 'confirmed', 'cancelled', 'delivered'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid status",
-      });
+      return res.status(404).json({ success: false, message: "Order not found or unauthorized" });
     }
 
-    // ✅ Update status
+    const validStatuses = ["pending", "confirmed", "cancelled", "delivered"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, message: "Invalid status" });
+    }
+
     order.status = status;
     await order.save();
 
-    res.json({
-      success: true,
-      message: "Order status updated successfully",
-      order,
-    });
+    res.json({ success: true, message: "Order status updated successfully", order });
   } catch (error) {
     console.error("Update Order Status Error:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
