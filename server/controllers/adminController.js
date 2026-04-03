@@ -28,7 +28,7 @@ export const changeRoleToAdmin = async (req, res) => {
 export const changeRoleToVendor = async (req, res) => {
   try {
      const { userId } = req.body;
-    await User.findByIdAndUpdate(_id, { role: "vendor" });
+    await User.findByIdAndUpdate(req.user._id, { role: "vendor" });
     res.status(200).json({ success: true, message: "You are now a Vendor" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

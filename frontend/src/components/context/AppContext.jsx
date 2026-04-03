@@ -213,7 +213,7 @@ export const AppProvider = ({ children }) => {
   // CHANGE ROLE (Vendor)
   const changeRole = async () => {
     try {
-      const { data } = await axios.post("/api/admin/make-vendor");
+      const { data } = await axios.post("/api/owner/change-role");
 
       if (data.success) {
         setIsVendor(true);
