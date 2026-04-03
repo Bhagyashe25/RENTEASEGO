@@ -19,7 +19,7 @@ import productRoutes from "./routes/productRoutes.js";
 const app = express();
 const isVercel = process.env.VERCEL;
 
-// ✅ Only create uploads dir locally (Vercel fs is read-only)
+// Only create uploads dir locally (Vercel fs is read-only)
 if (!isVercel) {
   const uploadsDir = path.join(__dirname, "uploads");
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -37,13 +37,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Uploads — local only
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-
-// ✅ distPath now correctly points to frontend/dist
-const distPath = path.join(__dirname, "../frontend/dist");
-
-// ✅ Serve Vite React build
-app.use(express.static(distPath));
+if (!isVercel) {
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+}
 
 // API Routes
 app.use("/api/user", userRouter);
@@ -52,20 +48,6 @@ app.use("/api/vendor", vendorRouter);
 app.use("/api/cart", cartRouter);
 app.use("/api/owner", ownerRoutes);
 app.use("/api", productRoutes);
-
-// ✅ Catch-all: serve React app for any non-API route
-app.get("/{*path}", (req, res) => {
-  const indexPath = path.join(distPath, "index.html");
-
-  if (!fs.existsSync(indexPath)) {
-    return res.status(404).json({
-      success: false,
-      message: "Frontend not built. Run `vite build` first.",
-    });
-  }
-
-  res.sendFile(indexPath);
-});
 
 // Global Error Handler
 app.use((err, req, res, next) => {
@@ -76,7 +58,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Only listen locally — Vercel handles this in production
+// Only listen locally
 if (!isVercel) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
