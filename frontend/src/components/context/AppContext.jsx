@@ -1,9 +1,7 @@
-// context/AppContext.js
 import { createContext, useContext, useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 
-// Set base URL for all axios requests
 axios.defaults.baseURL = import.meta.env.VITE_BASE_URL || "http://localhost:3000";
 
 export const AppContext = createContext();
@@ -13,11 +11,34 @@ export const AppProvider = ({ children }) => {
 
   // AUTH
   const [token, setToken] = useState(localStorage.getItem("token"));
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
   // ROLES
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isVendor, setIsVendor] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      const u = stored ? JSON.parse(stored) : null;
+      return u?.role === "admin";
+    } catch {
+      return false;
+    }
+  });
+  const [isVendor, setIsVendor] = useState(() => {
+    try {
+      const stored = localStorage.getItem("user");
+      const u = stored ? JSON.parse(stored) : null;
+      return u?.role === "vendor";
+    } catch {
+      return false;
+    }
+  });
 
   // LOGIN POPUP
   const [showLogin, setShowLogin] = useState(false);
@@ -43,7 +64,7 @@ export const AppProvider = ({ children }) => {
   const [serviceLocations, setServiceLocations] = useState([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
 
-  // Set token in axios headers
+  // Sync token to axios headers + localStorage
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -58,11 +79,11 @@ export const AppProvider = ({ children }) => {
   const fetchUser = async () => {
     try {
       const { data } = await axios.get("/api/user/data");
-
       if (data.success) {
         setUser(data.user);
         setIsAdmin(data.user.role === "admin");
         setIsVendor(data.user.role === "vendor");
+        localStorage.setItem("user", JSON.stringify(data.user));
       }
     } catch (err) {
       console.log("Fetch user error:", err.message);
@@ -73,7 +94,6 @@ export const AppProvider = ({ children }) => {
   const fetchCart = async () => {
     try {
       const { data } = await axios.get("/api/cart/my-cart");
-
       if (data.success) setCartItems(data.carts);
     } catch (err) {
       console.log("Fetch cart error:", err.message);
@@ -84,12 +104,8 @@ export const AppProvider = ({ children }) => {
   const fetchProducts = async () => {
     try {
       setLoadingProducts(true);
-
       const { data } = await axios.get("/api/products");
-
-      if (data.success) {
-        setProducts(data.products);
-      }
+      if (data.success) setProducts(data.products);
     } catch (err) {
       console.log("Fetch products error:", err.message);
     } finally {
@@ -102,9 +118,7 @@ export const AppProvider = ({ children }) => {
     try {
       setLoadingLocations(true);
       const { data } = await axios.get("/api/admin/service-areas");
-      if (data.success) {
-        setServiceLocations(data.areas || []);
-      }
+      if (data.success) setServiceLocations(data.areas || []);
     } catch (err) {
       console.log("Fetch service locations error:", err.message);
       setServiceLocations([]);
@@ -129,7 +143,6 @@ export const AppProvider = ({ children }) => {
       const { data } = await axios.get("/api/admin/users");
       if (data.success) {
         setUsers(data.users);
-        console.log("✅ Users set:", data.users.length);
         return data.users;
       }
       return [];
@@ -143,22 +156,20 @@ export const AppProvider = ({ children }) => {
   const fetchRentals = async () => {
     try {
       const { data } = await axios.get("/api/admin/rentals");
-      if (data.success) {
-        setRentals(data.rentals);
-      }
+      if (data.success) setRentals(data.rentals);
     } catch (err) {
       console.log("Fetch rentals error:", err.message);
     }
   };
 
-  // LOGIN
+  // LOGIN (regular user or vendor)
   const login = async (email, password) => {
     try {
       const { data } = await axios.post("/api/user/login", { email, password });
 
       if (data.success) {
         setToken(data.token);
-        
+
         if (data.user) {
           setUser(data.user);
           setIsAdmin(data.user.role === "admin");
@@ -169,16 +180,25 @@ export const AppProvider = ({ children }) => {
         toast.success("Login successful");
         setShowLogin(false);
 
+        // Redirect based on role
         if (data.user?.role === "admin") {
           window.location.href = "/admin";
         } else if (data.user?.role === "vendor") {
           window.location.href = "/vendor";
         }
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Invalid credentials");
+        throw new Error(data.message || "Invalid credentials");
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message);
+      const msg = err.response?.data?.message || err.message || "Login failed";
+      // Only show toast if it hasn't been shown yet (avoid double toast)
+      if (!err.response) {
+        // already toasted above for data.success === false
+      } else {
+        toast.error(msg);
+      }
+      throw new Error(msg);
     }
   };
 
@@ -189,13 +209,16 @@ export const AppProvider = ({ children }) => {
 
       if (data.success) {
         setToken(data.token);
-        toast.success("Account created");
+        toast.success("Account created successfully");
         setShowLogin(false);
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Registration failed");
+        throw new Error(data.message || "Registration failed");
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || err.message);
+      const msg = err.response?.data?.message || err.message || "Registration failed";
+      if (err.response) toast.error(msg);
+      throw new Error(msg);
     }
   };
 
@@ -205,19 +228,20 @@ export const AppProvider = ({ children }) => {
     setUser(null);
     setIsAdmin(false);
     setIsVendor(false);
+    setCartItems([]);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    toast.success("Logged out");
+    toast.success("Logged out successfully");
   };
 
-  // CHANGE ROLE (Vendor)
+  // CHANGE ROLE (become Vendor)
   const changeRole = async () => {
     try {
       const { data } = await axios.post("/api/owner/change-role");
 
       if (data.success) {
         setIsVendor(true);
-        setUser(prev => ({ ...prev, role: "vendor" }));
+        setUser((prev) => ({ ...prev, role: "vendor" }));
         toast.success(data.message);
       } else {
         toast.error(data.message);
@@ -232,9 +256,20 @@ export const AppProvider = ({ children }) => {
     try {
       const { data } = await axios.post("/api/user/login", { email, password });
 
-      if (!data.success) throw new Error(data.message);
-      if (!data.user) throw new Error("User data not received");
-      if (data.user.role !== "admin") throw new Error("You are not an admin!");
+      if (!data.success) {
+        toast.error(data.message || "Invalid credentials");
+        throw new Error(data.message || "Invalid credentials");
+      }
+
+      if (!data.user) {
+        toast.error("User data not received");
+        throw new Error("User data not received");
+      }
+
+      if (data.user.role !== "admin") {
+        toast.error("Access denied. You are not an admin.");
+        throw new Error("Access denied. You are not an admin.");
+      }
 
       setToken(data.token);
       setUser(data.user);
@@ -246,32 +281,35 @@ export const AppProvider = ({ children }) => {
       toast.success("Admin login successful");
       setShowLogin(false);
       window.location.href = "/admin";
+
     } catch (err) {
-      toast.error(err.message);
+      // If it's an axios network error (not our thrown Error), show toast
+      if (err.response) {
+        const msg = err.response.data?.message || "Login failed";
+        toast.error(msg);
+        throw new Error(msg);
+      }
+      // Otherwise re-throw (toast already shown above)
       throw err;
     }
   };
 
   // REMOVE CART ITEM
- const removeCartItem = async (cartId) => {
-  try {
-    console.log("Removing cart item:", cartId);
-    
-    const { data } = await axios.post("/api/cart/remove", { cartId });
-    
-    if (data.success) {
-      console.log("✅ Cart item removed successfully");
-      fetchCart(); // Refresh cart after removal
-      toast.success("Item removed from cart");
-    } else {
-      toast.error(data.message || "Failed to remove item");
+  const removeCartItem = async (cartId) => {
+    try {
+      const { data } = await axios.post("/api/cart/remove", { cartId });
+
+      if (data.success) {
+        fetchCart();
+        toast.success("Item removed from cart");
+      } else {
+        toast.error(data.message || "Failed to remove item");
+      }
+    } catch (error) {
+      console.error("Remove cart item error:", error);
+      toast.error(error.response?.data?.message || "Failed to remove item");
     }
-  } catch (error) {
-    console.error("❌ Remove cart item error:", error);
-    console.error("Response:", error.response?.data);
-    toast.error(error.response?.data?.message || "Failed to remove item");
-  }
-};
+  };
 
   // ADD TO CART
   const addToCart = async (productId, location, tenure, deliveryDate, pickupDate, orderType) => {
@@ -300,10 +338,11 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // CHECKOUT MULTIPLE ITEMS
+  // CHECKOUT
   const checkout = async (cartIds) => {
     try {
       const { data } = await axios.post("/api/cart/checkout", { cartIds });
+
       if (data.success) {
         fetchCart();
         toast.success("Order placed successfully");
@@ -316,7 +355,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Load user + cart when token changes
+  // Load user + cart when token is available
   useEffect(() => {
     if (token) {
       fetchUser();
@@ -325,12 +364,11 @@ export const AppProvider = ({ children }) => {
     }
   }, [token]);
 
-  // Load products when app starts
+  // Load products on app start
   useEffect(() => {
     fetchProducts();
   }, []);
 
-  // Context value
   const value = {
     currency,
     token,

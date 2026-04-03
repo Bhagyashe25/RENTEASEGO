@@ -4,8 +4,7 @@ import { useNavigate } from "react-router-dom"
 import { useAppContext } from "./context/AppContext"
 
 const Login = () => {
-
-  const { setShowLogin, login, register, loginAdmin, loginType } = useAppContext()
+  const { setShowLogin, login, register, loginAdmin } = useAppContext()
   const navigate = useNavigate()
 
   const [state, setState] = useState("login")
@@ -14,51 +13,39 @@ const Login = () => {
   const [password, setPassword] = useState("")
 
   const onSubmitHandler = async (e) => {
-
     e.preventDefault()
-
     try {
-    if (state === "login") {
-        console.log("🔐 Login attempt:", { email, loginType });
-        const isAdminEmail = email === "admin@rental.com";
-        
+      if (state === "login") {
+        const isAdminEmail = email === "admin@rental.com"
         if (isAdminEmail) {
-          await loginAdmin(email, password);
+          await loginAdmin(email, password)
         } else {
-          await login(email, password);
+          await login(email, password)
         }
       } else {
-        await register(name, email, password);
+        await register(name, email, password)
       }
-      navigate("/");
-
     } catch (error) {
-
-      toast.error(error.message)
-
+      // toast already shown inside loginAdmin/login/register
     }
-
   }
 
   return (
-
     <div
       onClick={() => setShowLogin(false)}
       className="fixed top-0 bottom-0 left-0 right-0 z-50 flex items-center justify-center bg-black/50"
     >
-
       <form
         onSubmit={onSubmitHandler}
         onClick={(e) => e.stopPropagation()}
+        autoComplete="off"
         className="flex flex-col gap-4 p-8 w-80 bg-white rounded-lg shadow-xl"
       >
-
         <p className="text-2xl font-semibold text-center">
           {state === "login" ? "Login" : "Sign Up"}
         </p>
 
         {state === "register" && (
-
           <div>
             <p>Name</p>
             <input
@@ -66,10 +53,10 @@ const Login = () => {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
+              autoComplete="off"
               className="border p-2 w-full rounded"
             />
           </div>
-
         )}
 
         <div>
@@ -79,6 +66,7 @@ const Login = () => {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            autoComplete="new-email"
             className="border p-2 w-full rounded"
           />
         </div>
@@ -90,12 +78,12 @@ const Login = () => {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
             className="border p-2 w-full rounded"
           />
         </div>
 
         {state === "login" ? (
-
           <p>
             Create account?{" "}
             <span
@@ -105,9 +93,7 @@ const Login = () => {
               Sign Up
             </span>
           </p>
-
         ) : (
-
           <p>
             Already have account?{" "}
             <span
@@ -117,19 +103,14 @@ const Login = () => {
               Login
             </span>
           </p>
-
         )}
 
         <button className="bg-blue-600 text-white py-2 rounded">
           {state === "login" ? "Login" : "Create Account"}
         </button>
-
       </form>
-
     </div>
-
   )
-
 }
 
 export default Login
