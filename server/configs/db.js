@@ -12,7 +12,7 @@ const connectDB = async ()=>{
     });
 
     // ✅ Use MONGODB_URI
-    await mongoose.connect(`${process.env.MONGODB_URI}/rental-app`);
+    await mongoose.connect(process.env.MONGODB_URI);
 
     } catch (error) {
         console.log(error.message);
