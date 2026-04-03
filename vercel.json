@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "builds": [
+    {
+      "src": "server/Server.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": ["frontend/dist/**"]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server/Server.js"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "server/Server.js"
+    }
+  ]
+}

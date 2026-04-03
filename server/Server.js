@@ -3,10 +3,12 @@ import "dotenv/config";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import connectDB from "./configs/db.js";
-
 import userRouter from "./routes/userRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
 import vendorRouter from "./routes/vendorRoutes.js";
@@ -15,50 +17,33 @@ import ownerRoutes from "./routes/ownerRoutes.js";
 import productRoutes from "./routes/productRoutes.js";
 
 const app = express();
+const isVercel = process.env.VERCEL;
 
-// Fix __dirname for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// ⚠️ Handle file system safely (Vercel-safe)
-const uploadsDir = path.join(__dirname, "uploads");
-
-try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
+// ✅ Only create uploads dir locally (Vercel fs is read-only)
+if (!isVercel) {
+  const uploadsDir = path.join(__dirname, "uploads");
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
   const reportsDir = path.join(uploadsDir, "reports");
-
-  if (!fs.existsSync(reportsDir)) {
-    fs.mkdirSync(reportsDir, { recursive: true });
-  }
-} catch (err) {
-  console.log("⚠️ File system not writable (expected on Vercel)");
+  if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
 }
 
-// Serve static files (may not persist on Vercel)
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+// Connect Database
+connectDB();
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Connect DB safely
-(async () => {
-  try {
-    await connectDB();
-    console.log("✅ DB Connected");
-  } catch (err) {
-    console.log("❌ DB Connection Failed:", err.message);
-  }
-})();
+// Uploads — local only
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
-// Test Route
-app.get("/", (req, res) => {
-  res.send("Rental Platform API Running 🚀");
-});
+// ✅ distPath now correctly points to frontend/dist
+const distPath = path.join(__dirname, "../frontend/dist");
+
+// ✅ Serve Vite React build
+app.use(express.static(distPath));
 
 // API Routes
 app.use("/api/user", userRouter);
@@ -68,15 +53,35 @@ app.use("/api/cart", cartRouter);
 app.use("/api/owner", ownerRoutes);
 app.use("/api", productRoutes);
 
+// ✅ Catch-all: serve React app for any non-API route
+app.get("*", (req, res) => {
+  const indexPath = path.join(distPath, "index.html");
+
+  if (!fs.existsSync(indexPath)) {
+    return res.status(404).json({
+      success: false,
+      message: "Frontend not built. Run `vite build` first.",
+    });
+  }
+
+  res.sendFile(indexPath);
+});
+
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
-
   res.status(500).json({
     success: false,
     message: "Server Error",
   });
 });
 
+// Only listen locally — Vercel handles this in production
+if (!isVercel) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
 export default app;
