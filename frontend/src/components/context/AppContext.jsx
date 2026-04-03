@@ -4,7 +4,7 @@ import axios from "axios";
 import { toast } from "react-hot-toast";
 
 // Set base URL for all axios requests
-axios.defaults.baseURL = import.meta.env.VITE_BASE_URL || "http://localhost:5000/api";
+axios.defaults.baseURL = import.meta.env.VITE_BASE_URL || "http://localhost:3000";
 
 export const AppContext = createContext();
 
