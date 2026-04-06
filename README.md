@@ -1,3 +1,5 @@
+live deploy- https://renteasego.vercel.app/
+
 frontend 
 npm start dev/npm run dev
 
